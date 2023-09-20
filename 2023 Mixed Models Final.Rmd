@@ -1,0 +1,1400 @@
+---
+title: "Mixed models to determine the relationship between urbanization and turtle behaviour"
+output:
+  word_document: default
+  html_document: default
+---
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+R code to determine the relationship between urbanization and turtle behaviour (handling reaction (Aggression), shell emergence time (Shell), time of initial movement (Start), total time spent moving (Move)).
+
+# Packages  
+```{r message=FALSE}
+library(Hmisc)
+library(writexl)
+library(ggplot2)
+library(dplyr)
+library(lmerTest)
+library(optimx)
+library(lme4)
+library(PerformanceAnalytics)
+library(effects)
+library(ggeffects) 
+library(splines)
+library(glmtoolbox)
+library(afex)
+library(nloptr)
+library(dfoptim)
+library(psych)
+library(ordinal)
+library(ggpubr)
+library(terra)
+library(AICcmodavg)
+library(visreg)
+library(MuMIn)
+```
+
+# Upload the dataset to use
+```{r}
+MixedData<-read.csv("C:/Users/sebas/Desktop/Masters Work/Masters Work/Stats/Bin.Shell.600/Mixed Model Correlation Data.600.csv")
+```
+
+# Preparing Data  
+```{r}
+# Response variables
+
+MixedData$Aggression <- as.numeric(MixedData$Aggression)
+MixedData$Shell <- as.numeric(MixedData$Shell)
+MixedData$Bin.Shell <- as.numeric(MixedData$Bin.Shell)
+MixedData$Start <- as.numeric(MixedData$Start)
+MixedData$Move <- as.numeric(MixedData$Move)
+
+# Predictor variables
+
+MixedData$Site <- as.factor(MixedData$Site)
+MixedData$Sex <- as.factor(MixedData$Sex)
+MixedData$Code <- as.factor(MixedData$Code)
+MixedData$A.Temp <- as.numeric(MixedData$A.Temp)
+MixedData$W.Temp <- as.numeric(MixedData$W.Temp)
+MixedData$Time <- as.numeric(MixedData$Time)
+MixedData$Weight<- as.numeric(MixedData$Weight)
+MixedData$PL <- as.numeric(MixedData$PL)
+MixedData$JulianDate <- as.numeric(MixedData$JulianDate)
+MixedData$for.veg.200 <- as.numeric(MixedData$for.veg.200)
+MixedData$for.veg.300 <- as.numeric(MixedData$for.veg.300)
+MixedData$for.veg.1000 <- as.numeric(MixedData$for.veg.1000)
+MixedData$wet.200 <- as.numeric(MixedData$wet.200)
+MixedData$wet.300 <- as.numeric(MixedData$wet.300)
+MixedData$wet.400 <- as.numeric(MixedData$wet.400)
+MixedData$wet.600 <- as.numeric(MixedData$wet.600)
+MixedData$wet.1000 <- as.numeric(MixedData$wet.1000)
+MixedData$agri.100 <- as.numeric(MixedData$agri.100)
+MixedData$agri.200 <- as.numeric(MixedData$agri.200)
+MixedData$agri.400 <- as.numeric(MixedData$agri.400)
+MixedData$agri.500 <- as.numeric(MixedData$agri.500)
+MixedData$agri.600 <- as.numeric(MixedData$agri.600)
+MixedData$agri.1000 <- as.numeric(MixedData$agri.1000)
+MixedData$urban.1000 <- as.numeric(MixedData$urban.1000)
+MixedData$water.100 <- as.numeric(MixedData$water.100)
+MixedData$water.400 <- as.numeric(MixedData$water.400)
+MixedData$water.500 <- as.numeric(MixedData$water.500)
+MixedData$water.900 <- as.numeric(MixedData$water.900)
+MixedData$water.1000 <- as.numeric(MixedData$water.1000)
+```
+
+## Log(x+1) transform time of initial movement (log.Start)
+```{r}
+MixedData$log.Start <- log(MixedData$Start + 1)
+```
+
+## Prepare log(x+1) transformed version of time of initial movement
+```{r}
+MixedData$log.Start <- as.numeric(MixedData$log.Start)
+```
+
+# Standardization of the predictor variables  
+```{r}
+### All continuous numeric predictor variables were standardized (mean zero, unit variance) before model selection.  
+
+MixedData$A.Temp.Scaled <- scale(MixedData$A.Temp, center=TRUE, scale=TRUE)
+MixedData$W.Temp.Scaled <- scale(MixedData$W.Temp, center=TRUE, scale=TRUE)
+MixedData$Time.Scaled <- scale(MixedData$Time, center=TRUE, scale=TRUE)
+MixedData$Weight.Scaled <- scale(MixedData$Weight, center=TRUE, scale=TRUE)
+MixedData$PL.Scaled <- scale(MixedData$PL, center=TRUE, scale=TRUE)
+MixedData$JulianDate.Scaled <- scale(MixedData$JulianDate, center=TRUE, scale=TRUE)
+MixedData$for.veg.200.Scaled <- scale(MixedData$for.veg.200, center=TRUE, scale=TRUE)
+MixedData$for.veg.300.Scaled <- scale(MixedData$for.veg.300, center=TRUE, scale=TRUE)
+MixedData$for.veg.1000.Scaled <- scale(MixedData$for.veg.1000, center=TRUE, scale=TRUE)
+MixedData$wet.200.Scaled <- scale(MixedData$wet.200, center=TRUE, scale=TRUE)
+MixedData$wet.300.Scaled <- scale(MixedData$wet.300, center=TRUE, scale=TRUE)
+MixedData$wet.400.Scaled <- scale(MixedData$wet.400, center=TRUE, scale=TRUE)
+MixedData$wet.600.Scaled <- scale(MixedData$wet.600, center=TRUE, scale=TRUE)
+MixedData$wet.1000.Scaled <- scale(MixedData$wet.1000, center=TRUE, scale=TRUE)
+MixedData$agri.100.Scaled <- scale(MixedData$agri.100, center=TRUE, scale=TRUE)
+MixedData$agri.200.Scaled <- scale(MixedData$agri.200, center=TRUE, scale=TRUE)
+MixedData$agri.400.Scaled <- scale(MixedData$agri.400, center=TRUE, scale=TRUE)
+MixedData$agri.500.Scaled <- scale(MixedData$agri.500, center=TRUE, scale=TRUE)
+MixedData$agri.600.Scaled <- scale(MixedData$agri.600, center=TRUE, scale=TRUE)
+MixedData$agri.1000.Scaled <- scale(MixedData$agri.1000, center=TRUE, scale=TRUE)
+MixedData$urban.1000.Scaled <- scale(MixedData$urban.1000, center=TRUE, scale=TRUE)
+MixedData$water.100.Scaled <- scale(MixedData$water.100, center=TRUE, scale=TRUE)
+MixedData$water.400.Scaled <- scale(MixedData$water.400, center=TRUE, scale=TRUE)
+MixedData$water.500.Scaled <- scale(MixedData$water.500, center=TRUE, scale=TRUE)
+MixedData$water.900.Scaled <- scale(MixedData$water.900, center=TRUE, scale=TRUE)
+MixedData$water.1000.Scaled <- scale(MixedData$water.1000, center=TRUE, scale=TRUE)
+```
+
+# Make scaled variables numeric
+```{r}
+MixedData$A.Temp.Scaled <- as.numeric(MixedData$A.Temp.Scaled)
+MixedData$W.Temp.Scaled <- as.numeric(MixedData$W.Temp.Scaled)
+MixedData$Time.Scaled <- as.numeric(MixedData$Time.Scaled)
+MixedData$Weight.Scaled<- as.numeric(MixedData$Weight.Scaled)
+MixedData$PL.Scaled <- as.numeric(MixedData$PL.Scaled)
+MixedData$JulianDate.Scaled <- as.numeric(MixedData$JulianDate.Scaled)
+MixedData$for.veg.200.Scaled <- as.numeric(MixedData$for.veg.200.Scaled)
+MixedData$for.veg.300.Scaled <- as.numeric(MixedData$for.veg.300.Scaled)
+MixedData$for.veg.1000.Scaled <- as.numeric(MixedData$for.veg.1000.Scaled)
+MixedData$wet.200.Scaled <- as.numeric(MixedData$wet.200.Scaled)
+MixedData$wet.300.Scaled <- as.numeric(MixedData$wet.300.Scaled)
+MixedData$wet.400.Scaled <- as.numeric(MixedData$wet.400.Scaled)
+MixedData$wet.600.Scaled <- as.numeric(MixedData$wet.600.Scaled)
+MixedData$wet.1000.Scaled <- as.numeric(MixedData$wet.1000.Scaled)
+MixedData$agri.100.Scaled <- as.numeric(MixedData$agri.100.Scaled)
+MixedData$agri.200.Scaled <- as.numeric(MixedData$agri.200.Scaled)
+MixedData$agri.400.Scaled <- as.numeric(MixedData$agri.400.Scaled)
+MixedData$agri.500.Scaled <- as.numeric(MixedData$agri.500.Scaled)
+MixedData$agri.600.Scaled <- as.numeric(MixedData$agri.600.Scaled)
+MixedData$agri.1000.Scaled <- as.numeric(MixedData$agri.1000.Scaled)
+MixedData$urban.1000.Scaled <- as.numeric(MixedData$urban.1000.Scaled)
+MixedData$water.100.Scaled <- as.numeric(MixedData$water.100.Scaled)
+MixedData$water.400.Scaled <- as.numeric(MixedData$water.400.Scaled)
+MixedData$water.500.Scaled <- as.numeric(MixedData$water.500.Scaled)
+MixedData$water.900.Scaled <- as.numeric(MixedData$water.900.Scaled)
+MixedData$water.1000.Scaled <- as.numeric(MixedData$water.1000.Scaled)
+```
+
+# Verification of model assumptions
+## Handling reaction (Aggression)
+### Multicollinearity: Generalized variance inflation factor (GVIF^(1/(2*df)))  
+GVIF^(1/(2*df)) > 2 indicates the presence of multicollinearity, so I will remove variables with values over 2, starting with the highest value.
+```{r}
+mod.Aggression.vif <- lm(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + Weight.Scaled + PL.Scaled + Sex + for.veg.1000.Scaled + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.Aggression.vif)
+```
+Turtle weight (Weight) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.Aggression.vif <- lm(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.1000.Scaled + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.Aggression.vif)
+```
+Proportion of forest and vegetation area at 1000m (for.veg.1000) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.Aggression.vif <- lm(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.Aggression.vif)
+```
+Water temperature (W.Temp) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.Aggression.vif <- lm(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.Aggression.vif)
+```
+All of the GVIF^(1/(2*df)) < 2, so I will not remove any more variables.
+
+### Calculation of Pearson and Spearman correlation coefficients
+#### Pearson correlation coefficients
+```{r}
+# Visualization of the correlations
+cor.pearson.Aggression <- MixedData[, c(3,4,5,6,7,8,26,28,37,56,60)]
+chart.Correlation(cor.pearson.Aggression, histogram=TRUE, pch=19)
+```
+
+```{r}
+# Creation of the correlation table
+table.corr.pearson.Aggression <- rcorr(as.matrix(MixedData[,c(3,4,5,6,7,8,26,28,37,56,60)]), type="pearson")
+table.cor.pearson.Aggression.r <- table.corr.pearson.Aggression$r # Pearson correlation coefficients
+table.cor.pearson.Aggression.p <- table.corr.pearson.Aggression$P # P values of the correlations
+table.cor.pearson.Aggression.r
+table.cor.pearson.Aggression.p
+```
+
+#### Spearman correlation coefficients
+```{r}
+# Creation of the correlation table
+table.corr.spearman.Aggression <- rcorr(as.matrix(MixedData[,c(3,4,5,6,7,8,26,28,37,56,60)]), type="spearman")
+table.cor.spearman.Aggression.r <- table.corr.spearman.Aggression$r # Pearson correlation coefficients
+table.cor.spearman.Aggression.p <- table.corr.spearman.Aggression$P # P values of the correlations
+table.cor.spearman.Aggression.r
+table.cor.spearman.Aggression.p
+```
+The Pearson correlation coefficient of 0.93 between Weight and PL, 0.84 between W.Temp and A.Temp and -0.74 between urban.for.veg.1000 and urban.1000 confirmed the deletion of Weight, W.Temp, and for.veg.1000 with the calculation of the GVIF^(1/(2*df)).
+
+### Verification of the assumptions with the initial model
+```{r}
+mod.Aggression.full <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code) + (1|Site), data = MixedData, REML = TRUE, na.action=na.exclude)
+
+summary(mod.Aggression.full)
+plot(mod.Aggression.full) 
+hist(residuals(mod.Aggression.full))
+qqnorm(resid(mod.Aggression.full)) 
+```
+
+## Time of initial movement (Start)
+### Multicollinearity: Generalized variance inflation factor (GVIF^(1/(2*df)))  
+GVIF^(1/(2*df)) > 2 indicates the presence of multicollinearity, so I will remove variables with values over 2, starting with the highest value.
+```{r}
+mod.Start.vif <- lm(Start ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + Weight.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + agri.600.Scaled + urban.1000.Scaled + water.500.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.Start.vif)
+```
+Turtle weight (Weight) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.Start.vif <- lm(Start ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + agri.600.Scaled + urban.1000.Scaled + water.500.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.Start.vif)
+```
+Water temperature (W.Temp) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.Start.vif <- lm(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + agri.600.Scaled + urban.1000.Scaled + water.500.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.Start.vif)
+```
+All of the GVIF^(1/(2*df)) < 2, so I will not remove any more variables.
+
+### Calculation of Pearson and Spearman correlation coefficients
+#### Pearson correlation coefficients
+```{r}
+# Visualization of the correlations
+cor.pearson.Start <- MixedData[, c(3,4,5,6,7,8,18,30,42,56,61)]
+chart.Correlation(cor.pearson.Start, histogram=TRUE, pch=19)
+```
+
+```{r}
+# Creation of the correlation table
+table.corr.pearson.Start <- rcorr(as.matrix(MixedData[,c(3,4,5,6,7,8,18,30,42,56,61)]), type="pearson")
+table.cor.pearson.Start.r <- table.corr.pearson.Start$r # Pearson correlation coefficients
+table.cor.pearson.Start.p <- table.corr.pearson.Start$P # P values of the correlations
+table.cor.pearson.Start.r
+table.cor.pearson.Start.p
+
+```
+
+#### Spearman correlation coefficients
+```{r}
+# Creation of the correlation table
+table.corr.spearman.Start <- rcorr(as.matrix(MixedData[,c(3,4,5,6,7,8,18,30,42,56,61)]), type="spearman")
+table.cor.spearman.Start.r <- table.corr.spearman.Start$r # Pearson correlation coefficients
+table.cor.spearman.Start.p <- table.corr.spearman.Start$P # P values of the correlations
+table.cor.spearman.Start.r
+table.cor.spearman.Start.p
+```
+The Pearson correlation coefficient of 0.93 between Weight and PL and 0.84 between W.Temp and A.Temp confirmed the deletion of Weight and W.Temp with the calculation of the GVIF^(1/(2*df)).
+
+### Verification of the assumptions with the initial model
+```{r}
+mod.Start.full <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + agri.600.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Code) + (1|Site), data = MixedData, REML = TRUE, na.action=na.exclude)
+
+summary(mod.Start.full)
+plot(mod.Start.full) 
+hist(residuals(mod.Start.full))
+qqnorm(resid(mod.Start.full)) 
+```
+
+## Log(x+1) transformed version of time of initial movement (log.Start)
+```{r}
+MixedData$log.Start <- as.numeric(MixedData$log.Start)
+```
+
+### Multicollinearity: Generalized variance inflation factor (GVIF^(1/(2*df)))  
+GVIF^(1/(2*df)) > 2 indicates the presence of multicollinearity, so I will remove variables with values over 2, starting with the highest value.
+```{r}
+mod.log.Start.vif <- lm(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + Weight.Scaled + PL.Scaled + Sex + for.veg.1000.Scaled + wet.400.Scaled + agri.400.Scaled + urban.1000.Scaled + water.100.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.log.Start.vif)
+```
+Turtle weight (Weight) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.log.Start.vif <- lm(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.1000.Scaled + wet.400.Scaled + agri.400.Scaled + urban.1000.Scaled + water.100.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.log.Start.vif)
+```
+Proportion of forest and vegetation area at 1000m (for.veg.1000) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.log.Start.vif <- lm(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + urban.1000.Scaled + water.100.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.log.Start.vif)
+```
+Water temperature (W.Temp) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.log.Start.vif <- lm(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + urban.1000.Scaled + water.100.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.log.Start.vif)
+```
+All of the GVIF^(1/(2*df)) < 2, so I will not remove any more variables.
+
+### Calculation of Pearson and Spearman correlation coefficients
+#### Pearson correlation coefficients
+```{r}
+# Visualization of the correlations
+cor.pearson.log.Start <- MixedData[, c(3,4,5,6,7,8,26,30,40,56,57)]
+chart.Correlation(cor.pearson.log.Start, histogram=TRUE, pch=19)
+```
+
+```{r}
+# Creation of the correlation table
+table.corr.pearson.log.Start <- rcorr(as.matrix(MixedData[,c(3,4,5,6,7,8,26,30,40,56,57)]), type="pearson")
+table.cor.pearson.log.Start.r <- table.corr.pearson.log.Start$r # Pearson correlation coefficients
+table.cor.pearson.log.Start.p <- table.corr.pearson.log.Start$P # P values of the correlations
+table.cor.pearson.log.Start.r
+table.cor.pearson.log.Start.p
+```
+
+#### Spearman correlation coefficients
+```{r}
+# Creation of the correlation table
+table.corr.spearman.log.Start <- rcorr(as.matrix(MixedData[,c(3,4,5,6,7,8,26,30,40,56,57)]), type="spearman")
+table.cor.spearman.log.Start.r <- table.corr.spearman.log.Start$r # Pearson correlation coefficients
+table.cor.spearman.log.Start.p <- table.corr.spearman.log.Start$P # P values of the correlations
+table.cor.spearman.log.Start.r
+table.cor.spearman.log.Start.p
+```
+The Pearson correlation coefficient of 0.93 between Weight and PL, -0.74 between for.veg.1000 and urban.1000, and 0.84 between W.Temp and A.Temp confirmed the deletion of Weight, for.veg.1000, and W.Temp with the calculation of the GVIF^(1/(2*df)).
+
+### Verification of the assumptions with the initial model
+```{r}
+mod.log.Start.full <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + urban.1000.Scaled + water.100.Scaled + (1|Code) + (1|Site), data = MixedData, REML = TRUE, na.action=na.exclude)
+
+summary(mod.log.Start.full)
+plot(mod.log.Start.full) 
+hist(residuals(mod.log.Start.full))
+qqnorm(resid(mod.log.Start.full)) 
+```
+
+## Time of shell emergence (Bin.Shell)
+### Multicollinearity: Generalized variance inflation factor (GVIF^(1/(2*df)))  
+GVIF^(1/(2*df)) > 2 indicates the presence of multicollinearity, so I will remove variables with values over 2, starting with the highest value.
+```{r}
+mod.Bin.Shell.vif <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + Weight.Scaled + PL.Scaled + Sex + for.veg.1000.Scaled + wet.300.Scaled + agri.1000.Scaled + urban.1000.Scaled + water.900.Scaled, data = MixedData, family = binomial, na.action=na.exclude)
+gvif(mod.Bin.Shell.vif)
+```
+Proportion of forest and vegetation area at 1000m (for.veg.1000) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.Bin.Shell.vif <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + Weight.Scaled + PL.Scaled + Sex + wet.300.Scaled + agri.1000.Scaled + urban.1000.Scaled + water.900.Scaled, data = MixedData, family = binomial, na.action=na.exclude)
+gvif(mod.Bin.Shell.vif)
+```
+Turtle weight (Weight) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.Bin.Shell.vif <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + agri.1000.Scaled + urban.1000.Scaled + water.900.Scaled, data = MixedData, family = binomial, na.action=na.exclude)
+gvif(mod.Bin.Shell.vif)
+```
+Water temperature (W.Temp) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.Bin.Shell.vif <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + agri.1000.Scaled + urban.1000.Scaled + water.900.Scaled, data = MixedData, family = binomial, na.action=na.exclude)
+gvif(mod.Bin.Shell.vif)
+```
+All of the GVIF^(1/(2*df)) < 2, so I will not remove any more variables.
+
+### Calculation of Pearson and Spearman correlation coefficients
+#### Pearson correlation coefficients
+```{r}
+# Visualization of the correlations
+cor.pearson.Bin.Shell <- MixedData[, c(3,4,5,6,7,8,26,29,46,56,65)]
+chart.Correlation(cor.pearson.Bin.Shell, histogram=TRUE, pch=19)
+```
+
+```{r}
+# Creation of the correlation table
+table.corr.pearson.Bin.Shell <- rcorr(as.matrix(MixedData[,c(3,4,5,6,7,8,26,29,46,56,65)]), type="pearson")
+table.cor.pearson.Bin.Shell.r <- table.corr.pearson.Bin.Shell$r # Pearson correlation coefficients
+table.cor.pearson.Bin.Shell.p <- table.corr.pearson.Bin.Shell$P # P values of the correlations
+table.cor.pearson.Bin.Shell.r
+table.cor.pearson.Bin.Shell.p
+
+```
+
+#### Spearman correlation coefficients
+```{r}
+# Creation of the correlation table
+table.corr.spearman.Bin.Shell <- rcorr(as.matrix(MixedData[,c(3,4,5,6,7,8,26,29,46,56,65)]), type="spearman")
+table.cor.spearman.Bin.Shell.r <- table.corr.spearman.Bin.Shell$r # Pearson correlation coefficients
+table.cor.spearman.Bin.Shell.p <- table.corr.spearman.Bin.Shell$P # P values of the correlations
+table.cor.spearman.Bin.Shell.r
+table.cor.spearman.Bin.Shell.p
+```
+The Pearson correlation coefficient of -0.74 between for.veg.1000 and urban.1000, 0.93 between Weight and PL,and 0.84 between W.Temp and A.Temp confirmed the deletion of for.veg.1000, Weight, and W.Temp with the calculation of the GVIF^(1/(2*df)).
+
+### Verification of the assumptions with the initial model
+```{r}
+
+mod.Bin.Shell.full <- glmer(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + agri.1000.Scaled + urban.1000.Scaled + water.900.Scaled + (1|Site) + (1|Code), data = MixedData, family = binomial, na.action=na.exclude)
+
+summary(mod.Bin.Shell.full)
+plot(mod.Bin.Shell.full) 
+hist(residuals(mod.Bin.Shell.full))
+qqnorm(resid(mod.Bin.Shell.full)) 
+```
+
+## Total time spent moving (Move)
+### Multicollinearity: Generalized variance inflation factor (GVIF^(1/(2*df)))  
+GVIF^(1/(2*df)) > 2 indicates the presence of multicollinearity, so I will remove variables with values over 2, starting with the highest value.
+```{r}
+mod.Move.vif <- lm(Move ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + Weight.Scaled + PL.Scaled + Sex + for.veg.300.Scaled + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.Move.vif)
+```
+Turtle weight (Weight) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.Move.vif <- lm(Move ~ JulianDate.Scaled + A.Temp.Scaled + W.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.300.Scaled + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.Move.vif)
+```
+Water temperature (W.Temp) has the highest GVIF^(1/(2*df)) > 2, so I will remove it and recalculate the factors.
+
+```{r}
+mod.Move.vif <- lm(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.300.Scaled + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled, data = MixedData, na.action=na.exclude)
+gvif(mod.Move.vif)
+```
+All of the GVIF^(1/(2*df)) < 2, so I will not remove any more variables.
+
+### Calculation of Pearson and Spearman correlation coefficients
+#### Pearson correlation coefficients
+```{r}
+# Visualization of the correlations
+cor.pearson.Move <- MixedData[, c(3,4,5,6,7,8,19,32,37,56,66)]
+chart.Correlation(cor.pearson.Move, histogram=TRUE, pch=19)
+```
+
+```{r}
+# Creation of the correlation table
+table.corr.pearson.Move <- rcorr(as.matrix(MixedData[,c(3,4,5,6,7,8,19,32,37,56,66)]), type="pearson")
+table.cor.pearson.Move.r <- table.corr.pearson.Move$r # Pearson correlation coefficients
+table.cor.pearson.Move.p <- table.corr.pearson.Move$P # P values of the correlations
+table.cor.pearson.Move.r
+table.cor.pearson.Move.p
+```
+
+#### Spearman correlation coefficients
+```{r}
+# Creation of the correlation table
+table.corr.spearman.Move <- rcorr(as.matrix(MixedData[,c(3,4,5,6,7,8,19,32,37,56,66)]), type="spearman")
+table.cor.spearman.Move.r <- table.corr.spearman.Move$r # Pearson correlation coefficients
+table.cor.spearman.Move.p <- table.corr.spearman.Move$P # P values of the correlations
+table.cor.spearman.Move.r
+table.cor.spearman.Move.p
+```
+The Pearson correlation coefficient of 0.93 between Weight and PL and 0.84 between W.Temp and A.Temp confirmed the deletion of Weight and W.Temp with the calculation of the GVIF^(1/(2*df)).
+
+### Verification of the assumptions with the initial model
+```{r}
+mod.Move.full <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.300.Scaled + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Code) + (1|Site), data = MixedData, REML = TRUE, na.action=na.exclude)
+
+summary(mod.Move.full)
+plot(mod.Move.full) 
+hist(residuals(mod.Move.full))
+qqnorm(resid(mod.Move.full)) 
+```
+
+
+# Model selection
+## Handling reaction
+### Random variable
+I am testing the significance of turtle ID and site identity by using likelihood ratio tests to see if the addition of these random variables has a significant effect on the initial model. I am using a dummy variable (the same value for all the observations) to create a null mixed model to compared with the different combinations of mixed models.
+
+#### Creation of the different mixed models
+```{r}
+## Null mixed model
+mod.Aggression.null <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Dummy), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## only site identity as random variable
+mod.Aggression.dummy.site <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Dummy) + (1|Site), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## only turtle ID as random variable
+mod.Aggression.dummy.code <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Dummy) + (1|Code), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## turtle ID without the dummy variable
+mod.Aggression.code <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## turtle ID and site identity without the dummy variable
+mod.Aggression.code.site <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code) + (1|Site), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+```
+
+# Likelihood ratio tests between the mixed models
+```{r}
+#anova with null model and dummy + site model
+anova(mod.Aggression.null, mod.Aggression.dummy.site)
+#anova with null model and dummy + code model
+anova(mod.Aggression.null, mod.Aggression.dummy.code)
+#anova with code model and code + site model
+anova(mod.Aggression.code, mod.Aggression.code.site)
+```
+If a test has a significant p-value (less than 0.05) then the random effect is significant. Therefore, I kept turtle ID (Code).
+
+# Predictor variables
+I am selecting the final model with a backward selection procedure. At each step, I deleted the fixed effect with the highest p value. I confirmed the deletion of each fixed effect with a likelihood ratio test. I created a new dataset at each step to use only the rows with complete observations for all the fixed effects, so that the likelihood ratio tests do not run between two models with a different number of observations.
+```{r}
+mod.Aggression.full <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+summary(mod.Aggression.full) 
+```
+I deleted turtle sex (Sex).
+
+```{r}
+mod.Aggression.1 <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Aggression, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$Sex, MixedData$wet.200.Scaled, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled, MixedData$water.400.Scaled),]
+
+mod.full.adjust <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Aggression.1.adjust <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Aggression.1.adjust, mod.full.adjust)
+summary(mod.Aggression.1)
+```
+I deleted time of testing (Time).
+
+```{r}
+mod.Aggression.2 <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + PL.Scaled + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Aggression, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$wet.200.Scaled, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled, MixedData$water.400.Scaled),]
+
+mod.full.adjust <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Aggression.2.adjust <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + PL.Scaled + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Aggression.2.adjust, mod.full.adjust)
+summary(mod.Aggression.2)
+```
+I deleted Julian date of testing (JulianDate).
+
+```{r}
+mod.Aggression.3 <- lmer(Aggression ~ A.Temp.Scaled + PL.Scaled + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Aggression, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$PL.Scaled, MixedData$wet.200.Scaled, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled, MixedData$water.400.Scaled),]
+
+mod.full.adjust <- lmer(Aggression ~ JulianDate.Scaled + A.Temp.Scaled + PL.Scaled + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Aggression.3.adjust <- lmer(Aggression ~ A.Temp.Scaled + PL.Scaled + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Aggression.3.adjust, mod.full.adjust)
+summary(mod.Aggression.3)
+```
+I deleted proportion of agricultural area at 100m (agri.100).
+
+```{r}
+mod.Aggression.4 <- lmer(Aggression ~ A.Temp.Scaled + PL.Scaled + wet.200.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Aggression, MixedData$A.Temp.Scaled, MixedData$PL.Scaled, MixedData$wet.200.Scaled, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled, MixedData$water.400.Scaled),]
+
+mod.full.adjust <- lmer(Aggression ~ A.Temp.Scaled + PL.Scaled + wet.200.Scaled + agri.100.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Aggression.4.adjust <- lmer(Aggression ~ A.Temp.Scaled + PL.Scaled + wet.200.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Aggression.4.adjust, mod.full.adjust)
+summary(mod.Aggression.4)
+```
+I deleted proportion of wetland area at 200m (wet.200).
+
+```{r}
+mod.Aggression.5 <- lmer(Aggression ~ A.Temp.Scaled + PL.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Aggression, MixedData$A.Temp.Scaled, MixedData$PL.Scaled, MixedData$wet.200.Scaled, MixedData$urban.1000.Scaled, MixedData$water.400.Scaled),]
+
+mod.full.adjust <- lmer(Aggression ~ A.Temp.Scaled + PL.Scaled + wet.200.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Aggression.5.adjust <- lmer(Aggression ~ A.Temp.Scaled + PL.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Aggression.5.adjust, mod.full.adjust)
+summary(mod.Aggression.5)
+```
+I deleted plastron length (PL).
+
+```{r}
+mod.Aggression.6 <- lmer(Aggression ~ A.Temp.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Aggression, MixedData$A.Temp.Scaled, MixedData$PL.Scaled, MixedData$urban.1000.Scaled, MixedData$water.400.Scaled),]
+
+mod.full.adjust <- lmer(Aggression ~ A.Temp.Scaled + PL.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Aggression.6.adjust <- lmer(Aggression ~ A.Temp.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Aggression.6.adjust, mod.full.adjust)
+summary(mod.Aggression.6)
+```
+All of the fixed effects are statistically significant, so I will stop the backwards selection process.
+
+# Final model
+## Summary statistics
+I changed the REML to TRUE to calculate the summary statistics of the final model.
+```{r}
+mod.Aggression.final <- lmer(Aggression ~ A.Temp.Scaled + urban.1000.Scaled + water.400.Scaled + (1|Code), data = MixedData, na.action=na.exclude, REML = TRUE)
+summary(mod.Aggression.final)
+```
+
+## Visualization of the predictor effects
+```{r}
+plot(allEffects(mod.Aggression.final)) 
+```
+
+## Calculation of the marginal and conditional variance explained by the final model
+```{r}
+r.squaredGLMM(mod.Aggression.final)
+```
+Marginal R2: fixed effects R2. Conditional R2: fixed and random effects R2.
+
+## Calculation of the 95% confidence intervals
+```{r}
+confint(mod.Aggression.final, level = 0.95, method = "Wald")
+```
+
+# Creation of the prediction figure for urban area at 1000m
+```{r}
+pred.con.model.Aggression.urban.1000 <- ggpredict(mod.Aggression.final, terms = "urban.1000.Scaled")
+pred.con.model.Aggression.urban.1000
+```
+
+```{r}
+# New dataset to only have complete observations for all the variables
+MixedData.adjust.final.model.Aggression <- MixedData[complete.cases(MixedData$A.Temp.Scaled, MixedData$urban.1000.Scaled, MixedData$water.400.Scaled),]
+```
+
+## Figure for proportion of urban area at 1000m
+Data was jittered.
+```{r}
+graph.con.Aggression.urban.1000 <- ggplot(data=pred.con.model.Aggression.urban.1000, aes(x, predicted)) + geom_point(data=MixedData, aes(urban.1000.Scaled, Aggression), position = position_jitter(width = 0.1)) +
+  geom_ribbon(data=pred.con.model.Aggression.urban.1000, aes(ymin=conf.low, ymax= conf.high), alpha=0.6) +
+  geom_line(data=pred.con.model.Aggression.urban.1000, color="black")+
+    theme_bw() + theme(panel.border = element_blank(), 
+                     panel.grid.major = element_blank(),
+                     panel.grid.minor = element_blank(), 
+                     axis.line = element_line(colour = "black")) +
+  theme(axis.text=element_text(size=15, colour="black",face = "bold")) +
+  ylab("Handling reactions") + 
+  xlab("Proportion of urban area at 1000m") 
+
+graph.con.Aggression.urban.1000
+```
+
+# Model selection
+## Time of shell emergence (binary)
+### Random variable
+I am testing the significance of turtle ID and site identity by using likelihood ratio tests to see if the addition of these random variables make a significant effect on the initial model. I am using a dummy variable (same value for all the observations) to create a null mixed model to compared with the different combinations of mixed models.
+
+#### Creation of the different mixed models
+```{r}
+## Null mixed model
+mod.Bin.Shell.null <- glmer(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + agri.1000.Scaled + urban.1000.Scaled + water.900.Scaled + (1|Dummy), data = MixedData, family = binomial, control=glmerControl(check.nlev.gtr.1="ignore"), na.action=na.exclude)
+
+## only site identity as random variable
+mod.Bin.Shell.dummy.site <- glmer(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + agri.1000.Scaled + urban.1000.Scaled + water.900.Scaled + (1|Dummy) + (1|Site), data = MixedData, family = binomial, control=glmerControl(check.nlev.gtr.1="ignore"), na.action=na.exclude)
+
+## only turtle ID as random variable
+mod.Bin.Shell.dummy.code <- glmer(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + agri.1000.Scaled + urban.1000.Scaled + water.900.Scaled + (1|Dummy) + (1|Code), data = MixedData, family = binomial, control=glmerControl(check.nlev.gtr.1="ignore"), na.action=na.exclude)
+
+## Turtle ID without the dummy variable
+mod.Bin.Shell.code <- glmer(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + agri.1000.Scaled + urban.1000.Scaled + water.900.Scaled + (1|Code), data = MixedData, family = binomial, control=glmerControl(check.nlev.gtr.1="ignore"), na.action=na.exclude)
+
+## Turtle and site identity without the dummy variable
+mod.Bin.Shell.code.site <- glmer(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + agri.1000.Scaled + urban.1000.Scaled + water.900.Scaled + (1|Code) + (1|Site), data = MixedData, family = binomial, control=glmerControl(check.nlev.gtr.1="ignore"), na.action=na.exclude)
+```
+
+# Likelihood ratio tests between the mixed models
+```{r}
+#anova with null model and dummy + site model
+anova(mod.Bin.Shell.null, mod.Bin.Shell.dummy.site)
+#anova with null model and dummy + code model
+anova(mod.Bin.Shell.null, mod.Bin.Shell.dummy.code)
+#anova with code model and code + site model
+anova(mod.Bin.Shell.code, mod.Bin.Shell.code.site)
+```
+If a test has a significant p-value (less than 0.05) then the random effect is significant. Therefore, I did not keep any random effects.
+
+# Predictor variables
+I am selecting the final model with a backward selection procedure. At each step, I deleted the fixed effect with the highest p value. I confirmed the deletion of each fixed effect with a likelihood ratio test. I created a new dataset at each step to use only the rows with complete observations for all the fixed effects, so that the likelihood ratio tests do not run between two models with a different number of observations.
+```{r}
+mod.Bin.Shell.full <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + agri.1000.Scaled + urban.1000.Scaled + water.900.Scaled, data = MixedData, family = binomial, na.action=na.exclude)
+
+summary(mod.Bin.Shell.full)
+```
+I deleted proportion of agricultural area at 1000m (agri.1000).
+
+```{r}
+mod.Bin.Shell.1 <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + urban.1000.Scaled + water.900.Scaled, data = MixedData, family = binomial, na.action=na.exclude)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Bin.Shell, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$Sex, MixedData$wet.300.Scaled, MixedData$agri.1000.Scaled, MixedData$urban.1000.Scaled, MixedData$water.900.Scaled),]
+
+mod.full.adjust <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + agri.1000.Scaled + urban.1000.Scaled + water.900.Scaled, data = MixedData.adjust, family = binomial, na.action=na.exclude)
+
+mod.Bin.Shell.1.adjust <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + urban.1000.Scaled + water.900.Scaled, data = MixedData.adjust, family = binomial, na.action=na.exclude)
+
+anova(mod.Bin.Shell.1.adjust, mod.full.adjust, test="Chisq")
+summary(mod.Bin.Shell.1)
+```
+I deleted proportion of open water at 900m (water.900).
+
+```{r}
+mod.Bin.Shell.2 <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + urban.1000.Scaled, data = MixedData, family = binomial, na.action=na.exclude)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Bin.Shell, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$Sex, MixedData$wet.300.Scaled, MixedData$urban.1000.Scaled, MixedData$water.900.Scaled),]
+
+mod.full.adjust <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + urban.1000.Scaled + water.900.Scaled, data = MixedData.adjust, family = binomial, na.action=na.exclude)
+
+mod.Bin.Shell.2.adjust <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + urban.1000.Scaled, data = MixedData.adjust, family = binomial, na.action=na.exclude)
+
+anova(mod.Bin.Shell.2.adjust, mod.full.adjust, test="Chisq")
+summary(mod.Bin.Shell.2)
+```
+I deleted turtle sex (Sex).
+
+```{r}
+mod.Bin.Shell.3 <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + wet.300.Scaled + urban.1000.Scaled, data = MixedData, family = binomial, na.action=na.exclude)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Bin.Shell, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$Sex, MixedData$wet.300.Scaled, MixedData$urban.1000.Scaled),]
+
+mod.full.adjust <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.300.Scaled + urban.1000.Scaled, data = MixedData.adjust, family = binomial, na.action=na.exclude)
+
+mod.Bin.Shell.3.adjust <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + wet.300.Scaled + urban.1000.Scaled, data = MixedData.adjust, family = binomial, na.action=na.exclude)
+
+anova(mod.Bin.Shell.3.adjust, mod.full.adjust, test="Chisq")
+summary(mod.Bin.Shell.3)
+```
+All of the fixed effects are statistically significant, so I will stop the backwards selection process.
+
+# Final model
+## Summary statistics
+Data was jittered.
+```{r}
+mod.Bin.Shell.final <- glm(Bin.Shell ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + wet.300.Scaled + urban.1000.Scaled, data = MixedData.adjust, family = binomial, na.action=na.exclude)
+summary(mod.Bin.Shell.final)
+```
+
+## Visualization of the predictor effects
+```{r}
+plot(allEffects(mod.Bin.Shell.final,)) 
+```
+
+## Calculation of the marginal and conditional variance explained by the final model
+```{r}
+r.squaredGLMM(mod.Bin.Shell.final)
+```
+Marginal R2: fixed effects R2. Conditional R2: fixed and random effects R2.
+The delta method can be used with all distributions and link functions.
+
+## Calculation of the 95% confidence intervals
+```{r}
+confint(mod.Bin.Shell.final, level = 0.95, method = "Wald")
+```
+# Creation of the prediction figure for urban area at 1000m
+```{r}
+pred.con.model.Bin.Shell.final <- ggpredict(mod.Bin.Shell.final, terms = "urban.1000.Scaled")
+pred.con.model.Bin.Shell.final
+```
+## Figure for proportion of urban area at 1000m
+Data was jittered.
+```{r}
+graph.con.Bin.Shell.urban.1000 <- ggplot(data=pred.con.model.Bin.Shell.final, aes(x, predicted)) + geom_point(data=MixedData, aes(urban.1000.Scaled, Bin.Shell), position = position_jitter(width = 0.01)) +
+  geom_ribbon(data=pred.con.model.Bin.Shell.final, aes(ymin=conf.low, ymax= conf.high), alpha=0.6) +
+  geom_line(data=pred.con.model.Bin.Shell.final, color="black")+
+    theme_bw() + theme(panel.border = element_blank(), 
+                     panel.grid.major = element_blank(),
+                     panel.grid.minor = element_blank(), 
+                     axis.line = element_line(colour = "black")) +
+  theme(axis.text=element_text(size=15, colour="black",face = "bold")) +
+  ylab("Time of shell emergence") + 
+  xlab("Proportion of urban area at 1000m") 
+
+graph.con.Bin.Shell.urban.1000
+```
+
+
+# Model selection
+## Time of initial movement
+### Random variable
+I am testing the significance of turtle ID and site identity by using likelihood ratio tests to see if the addition of these random variables make a significant effect on the initial model. I am using a dummy variable (same value for all the observations) to create a null mixed model to compared with the different combinations of mixed models.
+
+#### Creation of the different mixed models
+```{r}
+## Null mixed model
+mod.Start.null <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + agri.600.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Dummy), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## only site identity as random variable
+mod.Start.dummy.site <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + agri.600.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Dummy) + (1|Site), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## only turtle ID as random variable
+mod.Start.dummy.code <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + agri.600.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Dummy) + (1|Code), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## Turtle ID without the dummy variable
+mod.Start.code <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + agri.600.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Code), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## Turtle and site identity without the dummy variable
+mod.Start.code.site <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + agri.600.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Code) + (1|Site), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+```
+
+# Likelihood ratio tests between the mixed models
+```{r}
+#anova with null model and dummy + site model
+anova(mod.Start.null, mod.Start.dummy.site)
+#anova with null model and dummy + code model
+anova(mod.Start.null, mod.Start.dummy.code)
+#anova with code model and code + site model
+anova(mod.Start.code, mod.Start.code.site)
+```
+If a test has a significant p-value (less than 0.05) then the random effect is significant. Therefore, I kept site identity (Site).
+
+# Predictor variables
+I am selecting the final model with a backward selection procedure. At each step, I deleted the fixed effect with the highest p value. I confirmed the deletion of each fixed effect with a likelihood ratio test. I created a new dataset at each step to use only the rows with complete observations for all the fixed effects, so that the likelihood ratio tests do not run between two models with a different number of observations.
+```{r}
+mod.Start.full <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + agri.600.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+summary(mod.Start.full) 
+```
+I deleted proportion of agricultural area at 600m (agri.600).
+
+```{r}
+mod.Start.1 <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$Sex, MixedData$for.veg.200.Scaled, MixedData$wet.400.Scaled, MixedData$agri.600.Scaled, MixedData$urban.1000.Scaled, MixedData$water.500.Scaled),]
+
+mod.full.adjust <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + agri.600.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Start.1.adjust <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Start.1.adjust, mod.full.adjust)
+summary(mod.Start.1)
+```
+I deleted turtle sex (Sex).
+
+```{r}
+mod.Start.2 <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$Sex, MixedData$for.veg.200.Scaled, MixedData$wet.400.Scaled, MixedData$urban.1000.Scaled, MixedData$water.500.Scaled),]
+
+mod.full.adjust <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Start.2.adjust <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Start.2.adjust, mod.full.adjust)
+summary(mod.Start.2)
+```
+I deleted air temperature (A.Temp).
+
+```{r}
+mod.Start.3 <- lmer(Start ~ JulianDate.Scaled + Time.Scaled + PL.Scaled + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$for.veg.200.Scaled, MixedData$wet.400.Scaled, MixedData$urban.1000.Scaled, MixedData$water.500.Scaled),]
+
+mod.full.adjust <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Start.3.adjust <- lmer(Start ~ JulianDate.Scaled + Time.Scaled + PL.Scaled + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Start.3.adjust, mod.full.adjust)
+summary(mod.Start.3)
+```
+I deleted time of testing (Time).
+
+```{r}
+mod.Start.4 <- lmer(Start ~ JulianDate.Scaled + PL.Scaled + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$JulianDate.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$for.veg.200.Scaled, MixedData$wet.400.Scaled, MixedData$urban.1000.Scaled, MixedData$water.500.Scaled),]
+
+mod.full.adjust <- lmer(Start ~ JulianDate.Scaled + Time.Scaled + PL.Scaled + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Start.4.adjust <- lmer(Start ~ JulianDate.Scaled + PL.Scaled + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Start.4.adjust, mod.full.adjust)
+summary(mod.Start.4)
+```
+I removed proportion of wetland area at 400m (wet.400).
+
+```{r}
+mod.Start.5 <- lmer(Start ~ JulianDate.Scaled + PL.Scaled + for.veg.200.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$JulianDate.Scaled, MixedData$PL.Scaled, MixedData$for.veg.200.Scaled, MixedData$wet.400.Scaled, MixedData$urban.1000.Scaled, MixedData$water.500.Scaled),]
+
+mod.full.adjust <- lmer(Start ~ JulianDate.Scaled + PL.Scaled + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Start.5.adjust <- lmer(Start ~ JulianDate.Scaled + PL.Scaled + for.veg.200.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust,  na.action=na.exclude, REML = FALSE)
+
+anova(mod.Start.5.adjust, mod.full.adjust)
+summary(mod.Start.5)
+```
+I removed Julian date of testing (JulianDate).
+
+```{r}
+mod.Start.6 <- lmer(Start ~ PL.Scaled + for.veg.200.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$JulianDate.Scaled, MixedData$PL.Scaled, MixedData$for.veg.200.Scaled, MixedData$urban.1000.Scaled, MixedData$water.500.Scaled),]
+
+mod.full.adjust <- lmer(Start ~ JulianDate.Scaled + PL.Scaled + for.veg.200.Scaled +    urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Start.6.adjust <- lmer(Start ~ PL.Scaled + for.veg.200.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust,  na.action=na.exclude, REML = FALSE)
+
+anova(mod.Start.6.adjust, mod.full.adjust)
+summary(mod.Start.6)
+```
+I removed proportion of open water area at 500m (water.500).
+
+```{r}
+mod.Start.7 <- lmer(Start ~ PL.Scaled + for.veg.200.Scaled + urban.1000.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$PL.Scaled, MixedData$for.veg.200.Scaled, MixedData$urban.1000.Scaled, MixedData$water.500.Scaled),]
+
+mod.full.adjust <- lmer(Start ~ PL.Scaled + for.veg.200.Scaled +  urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Start.7.adjust <- lmer(Start ~ PL.Scaled + for.veg.200.Scaled + urban.1000.Scaled + (1|Site), data = MixedData.adjust,  na.action=na.exclude, REML = FALSE)
+
+anova(mod.Start.7.adjust, mod.full.adjust)
+summary(mod.Start.7)
+```
+Since the LRT P-value is almost significant (0.051) and the removal of water.500 changed urban.1000 from non-significant to significant, I decided to calculate the AICc values for mod.Start.6 and mod.Start.7 in order to compare their parsimony.
+
+# AIC test
+I had to recreate the initial model for initial time of movement for the AIC test.
+```{r}
+mod.Start.0 <- lmer(Start ~ agri.600.Scaled + JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.200.Scaled + wet.400.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+```
+
+```{r}
+#define list of models
+Start.models <- list(mod.Start.0, mod.Start.1, mod.Start.2, mod.Start.3, mod.Start.4, mod.Start.5, mod.Start.6, mod.Start.7)
+
+#specify model names
+Start.mod.names <- c('mod.Start.0', 'mod.Start.1', 'mod.Start.2', 'mod.Start.3', 'mod.Start.4', 'mod.Start.5', 'mod.Start.6', 'mod.Start.7')
+
+#calculate AICc of each model
+aictab(cand.set = Start.models, modnames = Start.mod.names)
+```
+mod.Start.6 and mod.Start.7 had an AICc value within 2 of each other which suggests that they are equally parsimonious, so I decided to average them. 
+
+# Averaging mod.Start.6 and mod.Start.7
+```{r}
+# Average the two models using model.avg
+averaged.model.Start <- model.avg(mod.Start.6, mod.Start.7)
+
+summary(averaged.model.Start)
+```
+To create the final model I will extract the conditional average coefficients, as they are only averaged over the models where the fixed effects appear.
+
+```{r}
+#Extracting the conditional average coefficients from the averaged model
+con.avg.coefs.Start <- averaged.model.Start$coefs[,1]
+```
+
+# Final model
+## Summary statistics
+I changed the REML to TRUE to calculate the summary statistics of the final model.
+```{r}
+#Creating model with just the conditional average coefficients 
+con.averaged.model.Start <- lmer(Start ~ PL.Scaled + for.veg.200.Scaled + urban.1000.Scaled + water.500.Scaled + (1|Site), 
+                           data = MixedData, 
+                           REML = TRUE, 
+                           na.action = na.exclude, 
+                           weights = con.avg.coefs.Start)
+summary(con.averaged.model.Start)
+```
+Proportion of urban area at 1000m (urban.1000) has a statistically significant effect on time of initial movement.
+
+# Visualization of the predictor effects
+
+```{r}
+plot(allEffects(con.averaged.model.Start)) 
+```
+
+## Calculation of the marginal and conditional variance explained by the final model
+```{r}
+r.squaredGLMM(con.averaged.model.Start)
+```
+Marginal R2: fixed effects R2. Conditional R2: fixed and random effects R2
+
+## Calculation of the 95% confidence intervals
+```{r}
+confint(con.averaged.model.Start, level = 0.95, method = "Wald")
+```
+
+# Creation of the prediction figure for urban area at 1000m
+```{r}
+pred.con.averaged.model.Start.urban.1000 <- ggpredict(con.averaged.model.Start, terms = "urban.1000.Scaled")
+pred.con.averaged.model.Start.urban.1000
+```
+```{r}
+# New dataset to only have complete observations for all the variables
+MixedData.adjust.final.model.Start <- MixedData[complete.cases(MixedData$PL.Scaled, MixedData$for.veg.200.Scaled, MixedData$urban.1000.Scaled, MixedData$water.500.Scaled),]
+```
+
+## Figure for proportion of urban area at 1000m
+```{r}
+graph.con.Start.urban.1000 <- ggplot(data=pred.con.averaged.model.Start.urban.1000, aes(x, predicted)) + geom_point(data=MixedData, aes(urban.1000.Scaled, Start)) +
+  geom_ribbon(data=pred.con.averaged.model.Start.urban.1000, aes(ymin=conf.low, ymax= conf.high), alpha=0.6) +
+  geom_line(data=pred.con.averaged.model.Start.urban.1000, color="black")+
+    theme_bw() + theme(panel.border = element_blank(), 
+                     panel.grid.major = element_blank(),
+                     panel.grid.minor = element_blank(), 
+                     axis.line = element_line(colour = "black")) +
+  theme(axis.text=element_text(size=15, colour="black",face = "bold")) +
+  ylab("Time of initial movement") + 
+  xlab("Proportion of urban area at 1000m") 
+
+graph.con.Start.urban.1000
+```
+
+# Model selection
+## Log(x+1) transformed version of time of initial movement 
+### Random variable
+I am testing the significance of turtle ID and site identity by using likelihood ratio tests to see if the addition of these random variables make a significant effect on the initial model. I am using a dummy variable (same value for all the observations) to create a null mixed model to compared with the different combinations of mixed models.
+
+#### Creation of the different mixed models
+```{r}
+## Null mixed model
+mod.log.Start.null <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + urban.1000.Scaled + water.100.Scaled + (1|Dummy), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## only site identity as random variable
+mod.log.Start.dummy.site <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + urban.1000.Scaled + water.100.Scaled + (1|Dummy) + (1|Site), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## only turtle ID as random variable
+mod.log.Start.dummy.code <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + urban.1000.Scaled + water.100.Scaled + (1|Dummy) + (1|Code), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## Turtle ID without the dummy variable
+mod.log.Start.code <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + urban.1000.Scaled + water.100.Scaled + (1|Code), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## Turtle and site identity without the dummy variable
+mod.log.Start.code.site <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + urban.1000.Scaled + water.100.Scaled + (1|Code) + (1|Site), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+```
+
+# Likelihood ratio tests between the mixed models
+```{r}
+#anova with null model and dummy + site model
+anova(mod.log.Start.null, mod.log.Start.dummy.site)
+#anova with null model and dummy + code model
+anova(mod.log.Start.null, mod.log.Start.dummy.code)
+#anova with code model and code + site model
+anova(mod.log.Start.code, mod.log.Start.code.site)
+```
+If a test has a significant p-value (less than 0.05) then the random effect is significant. Therefore, I kept site identity (Site).
+
+# Predictor variables
+I am selecting the final model with a backward selection procedure. At each step, I deleted the fixed effect with the highest p value. I confirmed the deletion of each fixed effect with a likelihood ratio test. I created a new dataset at each step to use only the rows with complete observations for all the fixed effects, so that the likelihood ratio tests do not run between two models with a different number of observations.
+```{r}
+mod.log.Start.full <- lmer(Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + urban.1000.Scaled + water.100.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+summary(mod.log.Start.full) 
+```
+I deleted proportion of urban area at 1000m (urban.1000.Scaled).
+
+```{r}
+mod.log.Start.1 <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + water.100.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$Sex, MixedData$wet.400.Scaled, MixedData$agri.400.Scaled, MixedData$urban.1000.Scaled, MixedData$water.100.Scaled),]
+
+mod.full.adjust <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + urban.1000.Scaled + water.100.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.log.Start.1.adjust <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + water.100.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.log.Start.1.adjust, mod.full.adjust)
+summary(mod.log.Start.1)
+```
+I deleted time of testing (Time).
+
+```{r}
+mod.log.Start.2 <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + water.100.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$Sex, MixedData$wet.400.Scaled, MixedData$agri.400.Scaled, MixedData$water.100.Scaled),]
+
+mod.full.adjust <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + water.100.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.log.Start.2.adjust <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + water.100.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.log.Start.2.adjust, mod.full.adjust)
+summary(mod.log.Start.2)
+```
+I deleted proportion of agricultural area at 400m (agri.400).
+
+```{r}
+mod.log.Start.3 <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + PL.Scaled + Sex + wet.400.Scaled + water.100.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$PL.Scaled, MixedData$Sex, MixedData$wet.400.Scaled, MixedData$agri.400.Scaled, MixedData$water.100.Scaled),]
+
+mod.full.adjust <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + PL.Scaled + Sex + wet.400.Scaled + agri.400.Scaled + water.100.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.log.Start.3.adjust <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + PL.Scaled + Sex + wet.400.Scaled + water.100.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.log.Start.3.adjust, mod.full.adjust)
+summary(mod.log.Start.3)
+```
+I deleted turtle sex (Sex).
+
+```{r}
+mod.log.Start.4 <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + PL.Scaled + wet.400.Scaled + water.100.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$PL.Scaled, MixedData$Sex, MixedData$wet.400.Scaled, MixedData$water.100.Scaled),]
+
+mod.full.adjust <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + PL.Scaled + Sex + wet.400.Scaled + water.100.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.log.Start.4.adjust <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + PL.Scaled + wet.400.Scaled + water.100.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.log.Start.4.adjust, mod.full.adjust)
+summary(mod.log.Start.4)
+```
+I deleted Julian date of testing (JulianDate).
+
+```{r}
+mod.log.Start.5 <- lmer(log.Start ~ A.Temp.Scaled + PL.Scaled + wet.400.Scaled + water.100.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$PL.Scaled, MixedData$wet.400.Scaled, MixedData$water.100.Scaled),]
+
+mod.full.adjust <- lmer(log.Start ~ JulianDate.Scaled + A.Temp.Scaled + PL.Scaled + wet.400.Scaled + water.100.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.log.Start.5.adjust <- lmer(log.Start ~ A.Temp.Scaled + PL.Scaled + wet.400.Scaled + water.100.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.log.Start.5.adjust, mod.full.adjust)
+summary(mod.log.Start.5)
+```
+I deleted proportion of wetland area at 400m (wet.400).
+
+```{r}
+mod.log.Start.6 <- lmer(log.Start ~ A.Temp.Scaled + PL.Scaled + water.100.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Start, MixedData$A.Temp.Scaled, MixedData$PL.Scaled, MixedData$wet.400.Scaled, MixedData$water.100.Scaled),]
+
+mod.full.adjust <- lmer(log.Start ~ A.Temp.Scaled + PL.Scaled + wet.400.Scaled + water.100.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.log.Start.6.adjust <- lmer(log.Start ~ A.Temp.Scaled + PL.Scaled + water.100.Scaled + (1|Site), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.log.Start.6.adjust, mod.full.adjust)
+summary(mod.log.Start.6)
+```
+All of the fixed effects are statistically significant, so I will stop the backwards selection process.
+
+# Final model
+## Summary statistics
+I changed the REML to TRUE to calculate the summary statistics of the final model.
+```{r}
+mod.log.Start.final <- lmer(log.Start ~ A.Temp.Scaled + PL.Scaled + water.100.Scaled + (1|Site), data = MixedData, na.action=na.exclude, REML = TRUE)
+
+summary(mod.log.Start.final)
+```
+
+## Visualization of the predictor effects
+```{r}
+plot(allEffects(mod.log.Start.final)) 
+```
+
+## Calculation of the marginal and conditional variance explained by the final model
+```{r}
+r.squaredGLMM(mod.log.Start.final)
+```
+Marginal R2: fixed effects R2. Conditional R2: fixed and random effects R2.
+
+## Calculation of the 95% confidence intervals
+```{r}
+confint(mod.log.Start.final, level = 0.95, method = "Wald")
+```
+
+# Model selection
+## Total time spent moving
+### Random variable
+I am testing the significance of turtle ID and site identity by using likelihood ratio tests to see if the addition of these random variables make a significant effect on the initial model. I am using a dummy variable (same value for all the observations) to create a null mixed model to compared with the different combinations of mixed models.
+
+#### Creation of the different mixed models
+```{r}
+#Null Mixed Model
+mod.Move.null <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.300.Scaled + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Dummy), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## only site identity as random variable
+mod.Move.dummy.site <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.300.Scaled + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Dummy) + (1|Site), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## only turtle ID as random variable
+mod.Move.dummy.code <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.300.Scaled + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Dummy) + (1|Code), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## Turtle ID without the dummy variable
+mod.Move.code <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.300.Scaled + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Code), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+
+## Turtle and site identity without the dummy variable
+mod.Move.code.site <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.300.Scaled + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Code) + (1|Site), data = MixedData, na.action=na.exclude, control=lmerControl(check.nlev.gtr.1="ignore"), REML = FALSE)
+```
+
+# Likelihood ratio tests between the mixed models
+```{r}
+#anova with null model and dummy + site model
+anova(mod.Move.null, mod.Move.dummy.site)
+#anova with null model and dummy + code model
+anova(mod.Move.null, mod.Move.dummy.code)
+#anova with code model and code + site model
+anova(mod.Move.code, mod.Move.code.site)
+```
+If a test has a significant p-value (less than 0.05) then the random effect is significant. Therefore, I kept turtle ID (Code) and site identity (Site).
+
+# Predictor variables
+I am selecting the final model with a backward selection procedure. At each step, I deleted the fixed effect with the highest p value. I confirmed the deletion of each fixed effect with a likelihood ratio test. I created a new dataset at each step to use only the rows with complete observations for all the fixed effects, so that the likelihood ratio tests do not run between two models with a different number of observations.
+```{r}
+mod.Move.full <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.300.Scaled + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE) 
+summary(mod.Move.full) 
+```
+I deleted proportion of forest and vegetation area at 300m (for.veg.300).
+
+```{r}
+mod.Move.1 <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Move, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$Sex, MixedData$for.veg.300.Scaled,  MixedData$wet.600.Scaled, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled, MixedData$water.1000.Scaled),]
+
+mod.full.adjust <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + for.veg.300.Scaled + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Move.1.adjust <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Move.1.adjust, mod.full.adjust)
+summary(mod.Move.1)
+```
+I deleted proportion of wetland area at 600m (wet.600).
+
+```{r}
+mod.Move.2 <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Move, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$Sex,  MixedData$wet.600.Scaled, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled, MixedData$water.1000.Scaled),]
+
+mod.full.adjust <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + wet.600.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Move.2.adjust <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Move.2.adjust, mod.full.adjust)
+summary(mod.Move.2)
+```
+I deleted turtle plastron length (PL). 
+
+```{r}
+mod.Move.3 <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Move, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$PL.Scaled, MixedData$Sex, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled, MixedData$water.1000.Scaled),]
+
+mod.full.adjust <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + PL.Scaled + Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Move.3.adjust <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Move.3.adjust, mod.full.adjust)
+summary(mod.Move.3)
+```
+I deleted time of testing (Time).
+
+```{r}
+mod.Move.4 <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Move, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Time.Scaled, MixedData$Sex, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled, MixedData$water.1000.Scaled),]
+
+mod.full.adjust <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Time.Scaled + Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Move.4.adjust <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Move.4.adjust, mod.full.adjust)
+summary(mod.Move.4)
+```
+I delted air temperature (A.Temp).
+
+```{r}
+mod.Move.5 <- lmer(Move ~ JulianDate.Scaled + Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Move, MixedData$JulianDate.Scaled, MixedData$A.Temp.Scaled, MixedData$Sex, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled, MixedData$water.1000.Scaled),]
+
+mod.full.adjust <- lmer(Move ~ JulianDate.Scaled + A.Temp.Scaled + Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Move.5.adjust <- lmer(Move ~ JulianDate.Scaled + Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Move.5.adjust, mod.full.adjust)
+summary(mod.Move.5)
+```
+I deleted Julian date of testing (JulianDate).
+
+```{r}
+mod.Move.6 <- lmer(Move ~ Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Move, MixedData$JulianDate.Scaled, MixedData$Sex, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled, MixedData$water.1000.Scaled),]
+
+mod.full.adjust <- lmer(Move ~ JulianDate.Scaled + Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Move.6.adjust <- lmer(Move ~ Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Move.6.adjust, mod.full.adjust)
+summary(mod.Move.6)
+```
+I deleted proportion of open water area at 1000m (water.1000).
+
+```{r}
+mod.Move.7 <- lmer(Move ~ Sex + agri.100.Scaled + urban.1000.Scaled + (1|Site) + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Move, MixedData$Sex, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled, MixedData$water.1000.Scaled),]
+
+mod.full.adjust <- lmer(Move ~ Sex + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Move.7.adjust <- lmer(Move ~ Sex + agri.100.Scaled + urban.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Move.7.adjust, mod.full.adjust)
+summary(mod.Move.7)
+```
+I deleted turtle sex (Sex).
+
+```{r}
+mod.Move.8 <- lmer(Move ~ agri.100.Scaled + urban.1000.Scaled + (1|Site) + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Move, MixedData$Sex, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled),]
+
+mod.full.adjust <- lmer(Move ~ Sex + agri.100.Scaled + urban.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Move.8.adjust <- lmer(Move ~ agri.100.Scaled + urban.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Move.8.adjust, mod.full.adjust)
+summary(mod.Move.8)
+```
+I deleted proportion of urban area at 1000m (urban.1000).
+
+```{r}
+mod.Move.9 <- lmer(Move ~ agri.100.Scaled + (1|Site) + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+
+MixedData.adjust <- MixedData[complete.cases(MixedData$Move, MixedData$agri.100.Scaled, MixedData$urban.1000.Scaled),]
+
+mod.full.adjust <- lmer(Move ~ agri.100.Scaled + urban.1000.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+mod.Move.9.adjust <- lmer(Move ~ agri.100.Scaled + (1|Site) + (1|Code), data = MixedData.adjust, na.action=na.exclude, REML = FALSE)
+
+anova(mod.Move.9.adjust, mod.full.adjust)
+summary(mod.Move.9)
+```
+Since the LRT P-value is barely significant (0.0499) after the removal of urban.1000, I decided to calculate the AICc values for mod.Move.8 and mod.Move.9 in order to compare their parsimony.
+
+# AIC test
+I had to recreate the initial model for total time spent moving (Move) for the AIC test
+```{r}
+mod.Move.0 <- lmer(Move ~ JulianDate.Scaled + A.Temp + Time.Scaled + PL.Scaled + Sex + wet.600.Scaled + for.veg.300.Scaled + agri.100.Scaled + urban.1000.Scaled + water.1000.Scaled + (1|Site) + (1|Code), data = MixedData, na.action=na.exclude, REML = FALSE)
+```
+
+```{r}
+#define list of models
+Move.models <- list(mod.Move.0, mod.Move.1, mod.Move.2, mod.Move.3, mod.Move.4, mod.Move.5, mod.Move.6, mod.Move.7, mod.Move.8, mod.Move.9)
+
+#specify model names
+Move.mod.names <- c('mod.Move.0', 'mod.Move.1', 'mod.Move.2', 'mod.Move.3', 'mod.Move.4', 'mod.Move.5', 'mod.Move.6', 'mod.Move.7', 'mod.Move.8', 'mod.Move.9')
+
+#calculate AICc of each model
+aictab(cand.set = Move.models, modnames = Move.mod.names)
+```
+mod.Move.8 and mod.Move.9 had an AICc value within 2 of each other which suggests that they are equally parsimonious, so I decided to average them. 
+
+# Averaging mod.Move.8 and mod.Move.9
+```{r}
+# Average the two models using model.avg
+averaged.model.move <- model.avg(mod.Move.8, mod.Move.9)
+
+summary(averaged.model.move)
+```
+To create the final model I will extract the conditional average coefficients, as they are only averaged over the models where the fixed effects appear.
+
+```{r}
+#Extracting the conditional average coefficients from the averaged model
+con.average.coefs.move <- averaged.model.move$coefs[,1]
+```
+
+# Final model
+## Summary statistics
+I changed the REML to TRUE to calculate the summary statistics of the final model.
+```{r}
+#Creating model with just the conditional average coefficients
+con.average.model.move <- lmer(Move ~ agri.100.Scaled + urban.1000.Scaled + (1|Site) + (1|Code), 
+                           data = MixedData, 
+                           REML = TRUE, 
+                           na.action = na.exclude, 
+                           weights = con.average.coefs.move)
+summary(con.average.model.move)
+```
+Proportion of urban land area at 1000m does not have a statistically significant effect on total time spent moving.
+
+# Visualization of the predictor effects
+```{r}
+plot(allEffects(con.average.model.move)) 
+```
+
+## Calculation of the marginal and conditional variance explained by the final model
+```{r}
+r.squaredGLMM(con.average.model.move)
+```
+Marginal R2: fixed effects R2. Conditional R2: fixed and random effects R2.
+
+## Calculation of the 95% confidence intervals
+```{r}
+confint(con.average.model.move, level = 0.95, method = "Wald")
+```

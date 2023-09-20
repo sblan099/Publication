@@ -1,0 +1,263 @@
+---
+title: "Determining the repeatability of turtle behaviour"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+R code to calculate the among-individual repeatabilty of the turtles behaviours ((handling reaction (Aggression), shell emergence time (Shell), time of initial movement (Start), total time spent moving (Move)). 
+
+# Packages 
+```{r message=FALSE}
+library(rptR)
+library(ggplot2)
+library(car)
+library(multcomp)
+library(lmtest)
+library(lme4)
+library(Hmisc)
+library(writexl)
+library(dplyr)
+library(lmerTest)
+library(optimx)
+library(PerformanceAnalytics)
+library(effects)
+library(ggeffects) 
+library(splines)
+library(glmtoolbox)
+library(afex)
+library(nloptr)
+library(dfoptim)
+library(psych)
+library(ordinal)
+library(ggpubr)
+```
+
+# Upload the dataset to use
+```{r message=FALSE}
+Behaviour<-read.csv("C:/Users/sebas/Desktop/Masters Work/Masters Work/Stats/Bin.Shell.600/Combined Repeatability Dataset.600.csv")
+```
+
+# Preparing data
+```{r}
+Behaviour$Shell <- as.numeric(Behaviour$Shell)
+Behaviour$Aggression <- as.numeric(Behaviour$Aggression)
+Behaviour$Start <- as.numeric(Behaviour$Start)
+Behaviour$Move <- as.numeric(Behaviour$Move)
+Behaviour$BIN.Shell <- as.numeric(Behaviour$BIN.Shell)
+```
+
+# Plot data
+I am doing this step to make sure I use the right data distribution in my models.
+```{r}
+ggplot(Behaviour, aes(x=Start)) + geom_histogram()
+ggplot(Behaviour, aes(x=Move)) + geom_histogram()
+ggplot(Behaviour, aes(x=Aggression)) + geom_histogram()
+ggplot(Behaviour, aes(x=Shell)) + geom_histogram()
+```
+Time of initial movement (Start) has a skewed distribution so I will try log transforming it. 
+
+# Transform inital time of movement
+```{r}
+Behaviour$log.Start <- log(Behaviour$Start + 1)
+```
+
+# Prepare log(x+1) transformed version of initial time of movement (log.Start)
+```{r}
+Behaviour$log.Start <- as.numeric(Behaviour$log.Start)
+```
+
+# Plot log(x+1) transformed version of initial time of movement
+```{r}
+ggplot(Behaviour, aes(x=log.Start)) + geom_histogram()
+```
+The log(x+1) transformed version of time of initial movement is still somewhat skewed, so I will run my analysis on both versions for comparison. Shell emergence time (Shell) is also skewed, so I will plot the binary version of it.
+
+# Plot binary shell emergence time (BIN.Shell)
+```{r}
+ggplot(Behaviour, aes(x=BIN.Shell)) + geom_histogram()
+```
+
+# Calculation of sources of variance and repeatability estimates
+For my study I set the bootstrap value to 1000, but for this R Code, I set the value to 10 to reduce the calculation time for some of the models, especially for the adjusted estimations.This does not affect the value of the repeatability estimates or p-values, but it does affect the values for the standard errors and 95% confidence intervals
+
+## Time of initial movement (Start)
+### Unadjusted
+For the unadjusted estimations, I only included turtle ID (Code) as a random effect.
+
+#### Repeatability
+```{r echo=T, results='hide'}
+rep.Start <- rpt(Start ~ (1 | Code), grname = "Code", data = Behaviour, datatype = "Gaussian", nboot = 10, npermut = 0)
+```
+##### Analysis
+```{r}
+summary(rep.Start)
+plot(rep.Start)
+plot(rep.Start$mod)
+qqnorm(resid(rep.Start$mod))
+print(rep.Start)
+```
+### Adjusted
+For the adjusted estimations, I also included turtle sex (Sex) and day of testing (Day) as fixed effects, and site identity (Site) as a random effect.
+
+#### Repeatability
+```{r echo=T, results='hide'}
+rep.fix.Start <- rpt(Start ~ Day + Sex + (1 | Code) + (1 | Site), grname = "Code", data = Behaviour, datatype = "Gaussian", 
+                            nboot = 10, npermut = 0)
+```
+
+##### Analysis
+```{r}
+summary(rep.fix.Start)
+plot(rep.fix.Start)
+plot(rep.fix.Start$mod)
+qqnorm(resid(rep.fix.Start$mod))
+print(rep.fix.Start)
+```
+
+## Log(x+1) transformed version ot time of initial movement (log.Start)
+### Unadjusted
+For the unadjusted estimations, I only included turtle ID (Code) as a random effect.
+
+#### Repeatability
+```{r echo=T, results='hide'}
+rep.log.Start <- rpt(log.Start ~ (1 | Code), grname = "Code", data = Behaviour, datatype = "Gaussian", nboot = 10, npermut = 0)
+```
+
+##### Analysis
+```{r}
+summary(rep.log.Start)
+plot(rep.log.Start)
+plot(rep.log.Start$mod)
+qqnorm(resid(rep.log.Start$mod))
+print(rep.log.Start)
+```
+
+### Adjusted
+For the adjusted estimations, I also included turtle sex (Sex) and day of testing (Day) as fixed effects, and site identity (Site) as a random effect.
+
+#### Repeatability
+```{r echo=T, results='hide'}
+rep.fix.log.Start <- rpt(log.Start ~ Day + Sex + (1 | Code) + (1 | Site), grname = "Code", data = Behaviour, datatype = "Gaussian", 
+                            nboot = 10, npermut = 0)
+```
+
+##### Analysis
+```{r}
+summary(rep.fix.log.Start)
+plot(rep.fix.log.Start)
+plot(rep.fix.log.Start$mod)
+qqnorm(resid(rep.fix.log.Start$mod))
+print(rep.fix.log.Start)
+```
+
+## Total time spent moving (Move)
+### Unadjusted
+For the unadjusted estimations, I only include turtle ID (Code) as a random effect.
+
+#### Repeatability
+```{r echo=T, results='hide'}
+rep.Move <- rpt(Move ~ (1 | Code), grname = "Code", data = Behaviour, datatype = "Gaussian", nboot = 10, npermut = 0)
+```
+
+##### Analysis
+```{r}
+summary(rep.Move)
+plot(rep.Move)
+plot(rep.Move$mod)
+qqnorm(resid(rep.Move$mod))
+print(rep.Move)
+```
+
+### Adjusted
+For the adjusted estimations, I also included turtle sex (Sex) and day of testing (Day) as fixed effects, and site identity (Site) as a random effect.
+
+#### Repeatability
+```{r echo=T, results='hide'}
+rep.fix.Move <- rpt(Move ~ Day + Sex + (1 | Code) + (1 | Site), grname = "Code", data = Behaviour, datatype = "Gaussian", 
+                       nboot = 10, npermut = 0)
+```
+
+##### Analysis 
+```{r}
+summary(rep.fix.Move)
+plot(rep.fix.Move)
+plot(rep.fix.Move$mod)
+qqnorm(resid(rep.fix.Move$mod))
+print(rep.fix.Move)
+```
+
+## Handling reaction (Aggression)
+### Unadjusted
+For the unadjusted estimations, I only included turtle ID (Code) as a random effect.
+
+#### Repeatability
+```{r echo=T, results='hide'}
+rep.Aggression <- rpt(Aggression ~ (1 | Code), grname = "Code", data = Behaviour, datatype = "Gaussian", nboot = 10, npermut = 0)
+```
+
+##### Analysis
+```{r}
+summary(rep.Aggression)
+plot(rep.Aggression)
+plot(rep.Aggression$mod)
+qqnorm(resid(rep.Aggression$mod))
+print(rep.Aggression)
+```
+
+### Adjusted
+For the adjusted estimations, I also included turtle sex (Sex) and day of testing (Day) as fixed effects, and site identity (Site) as a random effect.
+
+#### Repeatability 
+```{r echo=T, results='hide'}
+rep.fix.Aggression <- rpt(Aggression ~ Day + Sex + (1 | Site) + (1 | Code), grname = "Code", data = Behaviour, datatype = "Gaussian", 
+                            nboot = 10, npermut = 0)
+```
+
+##### Analysis
+```{r}
+summary(rep.fix.Aggression)
+plot(rep.fix.Aggression)
+plot(rep.fix.Aggression$mod)
+qqnorm(resid(rep.fix.Aggression$mod))
+print(rep.fix.Aggression)
+```
+
+## Shell emergence time (binary) (BIN.Shell)
+### Unadjusted
+For the unadjusted estimations, I only included turtle ID (Code) as a random effect.
+
+#### Repeatability
+```{r echo=T, results='hide'}
+rep.Bin.Shell <- rpt(BIN.Shell ~ (1 | Code), grname = "Code", data = Behaviour, datatype = "Binary", nboot = 10, npermut = 0)
+```
+
+##### Analysis
+```{r}
+summary(rep.Bin.Shell)
+plot(rep.Bin.Shell)
+plot(rep.Bin.Shell$mod)
+qqnorm(resid(rep.Bin.Shell$mod))
+print(rep.Bin.Shell)
+```
+
+### Adjusted
+For the adjusted estimations, I also included turtle sex (Sex) and day of testing (Day) as fixed effects, and site identity (Site) as a random effect.
+
+#### Repeatability 
+```{r echo=T, results='hide'}
+rep.fix.Bin.Shell <- rpt(BIN.Shell ~ Day + Sex + (1 | Code) + (1 | Site), grname = "Code", data = Behaviour, datatype = "Binary", 
+                            nboot = 10, npermut = 0)
+```
+
+##### Analysis
+```{r}
+summary(rep.fix.Bin.Shell)
+plot(rep.fix.Bin.Shell)
+plot(rep.fix.Bin.Shell$mod)
+qqnorm(resid(rep.fix.Bin.Shell$mod))
+print(rep.fix.Bin.Shell)
+```
